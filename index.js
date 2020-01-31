@@ -4,11 +4,14 @@ var async = require("async");
 var util = require("util");
 var path = require("path");
 var assign = require("object-assign");
-var fastreplace = require('./lib/fastreplace');
-var findNestedRequires = require('./lib/findNestedRequires');
+var fastreplace = require("./lib/fastreplace");
+var findNestedRequires = require("./lib/findNestedRequires");
 
 function versionCheck(hbCompiler, hbRuntime) {
-  return hbCompiler.COMPILER_REVISION === (hbRuntime["default"] || hbRuntime).COMPILER_REVISION;
+  return (
+    hbCompiler.COMPILER_REVISION ===
+    (hbRuntime["default"] || hbRuntime).COMPILER_REVISION
+  );
 }
 
 /**
@@ -20,8 +23,11 @@ function versionCheck(hbCompiler, hbRuntime) {
  */
 function getLoaderConfig(loaderContext) {
   var query = loaderUtils.getOptions(loaderContext) || {};
-  var configKey = query.config || 'handlebarsLoader';
-  var config = (loaderContext.rootContext ? loaderContext.rootContext[configKey] : loaderContext.options[configKey]) || {};
+  var configKey = query.config || "handlebarsLoader";
+  var config =
+    (loaderContext.rootContext
+      ? loaderContext.rootContext[configKey]
+      : loaderContext.options[configKey]) || {};
   delete query.config;
   return assign({}, config, query);
 }
@@ -33,7 +39,9 @@ module.exports = function(source) {
   var runtimePath = query.runtime || require.resolve("handlebars/runtime");
 
   if (!versionCheck(handlebars, require(runtimePath))) {
-    throw new Error('Handlebars compiler version does not match runtime version');
+    throw new Error(
+      "Handlebars compiler version does not match runtime version"
+    );
   }
 
   var precompileOptions = query.precompileOptions || {};
@@ -42,8 +50,7 @@ module.exports = function(source) {
   var extensions = query.extensions;
   if (!extensions) {
     extensions = [".handlebars", ".hbs", ""];
-  }
-  else if (!Array.isArray(extensions)) {
+  } else if (!Array.isArray(extensions)) {
     extensions = extensions.split(/[ ,;]/g);
   }
 
@@ -57,11 +64,13 @@ module.exports = function(source) {
   var foundUnclearStuff = {};
   var knownHelpers = {};
 
-  [].concat(query.knownHelpers, precompileOptions.knownHelpers).forEach(function(k) {
-    if (k && typeof k === 'string') {
-      knownHelpers[k] = true;
-    }
-  });
+  []
+    .concat(query.knownHelpers, precompileOptions.knownHelpers)
+    .forEach(function(k) {
+      if (k && typeof k === "string") {
+        knownHelpers[k] = true;
+      }
+    });
 
   var inlineRequires = query.inlineRequires;
   if (inlineRequires) {
@@ -87,29 +96,34 @@ module.exports = function(source) {
       console.log("nameLookup %s %s %s", parent, name, type);
     }
     if (type === "partial") {
-      if (name === '@partial-block') {
+      if (name === "@partial-block") {
         // this is a built in partial, no need to require it
         return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
       }
       if (foundPartials["$" + name]) {
-        return "require(" + loaderUtils.stringifyRequest(loaderApi, foundPartials["$" + name]) + ")";
+        return (
+          "require(" +
+          loaderUtils.stringifyRequest(loaderApi, foundPartials["$" + name]) +
+          ")"
+        );
       }
       foundPartials["$" + name] = null;
       return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
-    }
-    else if (type === "helper") {
+    } else if (type === "helper") {
       if (foundHelpers["$" + name]) {
-        return "__default(require(" + loaderUtils.stringifyRequest(loaderApi, foundHelpers["$" + name]) + "))";
+        return (
+          "__default(require(" +
+          loaderUtils.stringifyRequest(loaderApi, foundHelpers["$" + name]) +
+          "))"
+        );
       }
       foundHelpers["$" + name] = null;
       return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
-    }
-    else if (type === "context") {
+    } else if (type === "context") {
       // This could be a helper too, save it to check it later
       if (!foundUnclearStuff["$" + name]) foundUnclearStuff["$" + name] = false;
       return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
-    }
-    else {
+    } else {
       return JavaScriptCompiler.prototype.nameLookup.apply(this, arguments);
     }
   };
@@ -117,17 +131,24 @@ module.exports = function(source) {
   if (inlineRequires) {
     MyJavaScriptCompiler.prototype.pushString = function(value) {
       if (inlineRequires.test(value)) {
-        this.pushLiteral("require(" + loaderUtils.stringifyRequest(loaderApi, value) + ")");
+        this.pushLiteral(
+          "require(" + loaderUtils.stringifyRequest(loaderApi, value) + ")"
+        );
       } else {
         JavaScriptCompiler.prototype.pushString.call(this, value);
       }
     };
-    MyJavaScriptCompiler.prototype.appendToBuffer = function (str) {
+    MyJavaScriptCompiler.prototype.appendToBuffer = function(str) {
       // This is a template (stringified HTML) chunk
       if (str.indexOf && str.indexOf('"') === 0) {
         var replacements = findNestedRequires(str, inlineRequires);
-        str = fastreplace(str, replacements, function (match) {
-          return "\" + require(" + loaderUtils.stringifyRequest(loaderApi, match) + ") + \"";
+        str = fastreplace(str, replacements, function(match) {
+          // return "\" + require(" + loaderUtils.stringifyRequest(loaderApi, match) + ") + \"";
+          return (
+            './" + require(' +
+            loaderUtils.stringifyRequest(loaderApi, match) +
+            ').default + "'
+          );
         });
       }
       return JavaScriptCompiler.prototype.appendToBuffer.apply(this, arguments);
@@ -149,7 +170,7 @@ module.exports = function(source) {
     Visitor.prototype.PartialBlockStatement.call(this, partial);
   };
   InternalBlocksVisitor.prototype.DecoratorBlock = function(partial) {
-    if (partial.path.original === 'inline') {
+    if (partial.path.original === "inline") {
       this.inlineBlocks.push(partial.params[0].value);
     }
 
@@ -174,8 +195,13 @@ module.exports = function(source) {
 
       // Use a relative path for helpers if helper directories are given
       // unless automatic relative helper resolution has been turned off
-      if (type === 'helper' && query.helperDirs && query.helperDirs.length && rootRelative !== '') {
-        return './' + ref;
+      if (
+        type === "helper" &&
+        query.helperDirs &&
+        query.helperDirs.length &&
+        rootRelative !== ""
+      ) {
+        return "./" + ref;
       }
 
       return rootRelative + ref;
@@ -185,20 +211,24 @@ module.exports = function(source) {
     var needRecompile = false;
 
     // Precompile template
-    var template = '';
+    var template = "";
 
     // AST holder for current template
     var ast = null;
 
     // Compile options
-    var opts = assign({
-      knownHelpersOnly: !firstCompile,
-      // TODO: Remove these in next major release
-      preventIndent: !!query.preventIndent,
-      compat: !!query.compat
-    }, precompileOptions, {
-      knownHelpers: knownHelpers,
-    });
+    var opts = assign(
+      {
+        knownHelpersOnly: !firstCompile,
+        // TODO: Remove these in next major release
+        preventIndent: !!query.preventIndent,
+        compat: !!query.compat
+      },
+      precompileOptions,
+      {
+        knownHelpers: knownHelpers
+      }
+    );
 
     try {
       if (source) {
@@ -235,8 +265,7 @@ module.exports = function(source) {
         var next = function(err) {
           if (contexts.length > 0) {
             resolveWithContexts();
-          }
-          else {
+          } else {
             if (debug) console.log("Failed to resolve %s %s", type, traceMsg);
             return callback(err);
           }
@@ -247,13 +276,11 @@ module.exports = function(source) {
             if (exclude && exclude.test(result)) {
               if (debug) console.log("Excluding %s %s", type, traceMsg);
               return next();
-            }
-            else {
+            } else {
               if (debug) console.log("Resolved %s %s", type, traceMsg);
               return callback(err, result);
             }
-          }
-          else {
+          } else {
             return next(err);
           }
         });
@@ -264,12 +291,12 @@ module.exports = function(source) {
 
     var resolveUnclearStuffIterator = function(stuff, unclearStuffCallback) {
       if (foundUnclearStuff[stuff]) return unclearStuffCallback();
-      var request = referenceToRequest(stuff.substr(1), 'unclearStuff');
+      var request = referenceToRequest(stuff.substr(1), "unclearStuff");
 
       if (query.ignoreHelpers) {
         unclearStuffCallback();
       } else {
-        resolve(request, 'unclearStuff', function(err, result) {
+        resolve(request, "unclearStuff", function(err, result) {
           if (!err && result) {
             knownHelpers[stuff.substr(1)] = true;
             foundHelpers[stuff] = result;
@@ -281,8 +308,11 @@ module.exports = function(source) {
       }
     };
 
-    var defaultPartialResolver = function defaultPartialResolver(request, callback){
-      request = referenceToRequest(request, 'partial');
+    var defaultPartialResolver = function defaultPartialResolver(
+      request,
+      callback
+    ) {
+      request = referenceToRequest(request, "partial");
       // Try every extension for partials
       var i = 0;
       (function tryExtension() {
@@ -292,13 +322,13 @@ module.exports = function(source) {
         }
         var extension = extensions[i++];
 
-        resolve(request + extension, 'partial', function(err, result) {
+        resolve(request + extension, "partial", function(err, result) {
           if (!err && result) {
             return callback(null, result);
           }
           tryExtension();
         });
-      }());
+      })();
     };
 
     var resolvePartialsIterator = function(partial, partialCallback) {
@@ -308,11 +338,11 @@ module.exports = function(source) {
 
       var partialResolver = query.partialResolver || defaultPartialResolver;
 
-      if(query.ignorePartials) {
+      if (query.ignorePartials) {
         return partialCallback();
       } else {
-        partialResolver(request, function(err, resolved){
-          if(err) {
+        partialResolver(request, function(err, resolved) {
+          if (err) {
             var visitor = new InternalBlocksVisitor();
 
             visitor.accept(ast);
@@ -325,7 +355,6 @@ module.exports = function(source) {
             } else {
               return partialCallback(err);
             }
-
           }
           foundPartials[partial] = resolved;
           needRecompile = true;
@@ -336,13 +365,13 @@ module.exports = function(source) {
 
     var resolveHelpersIterator = function(helper, helperCallback) {
       if (foundHelpers[helper]) return helperCallback();
-      var request = referenceToRequest(helper.substr(1), 'helper');
+      var request = referenceToRequest(helper.substr(1), "helper");
 
       if (query.ignoreHelpers) {
         helperCallback();
       } else {
-        var defaultHelperResolver = function(request, callback){
-          return resolve(request, 'helper', callback);
+        var defaultHelperResolver = function(request, callback) {
+          return resolve(request, "helper", callback);
         };
 
         var helperResolver = query.helperResolver || defaultHelperResolver;
@@ -373,11 +402,15 @@ module.exports = function(source) {
       }
 
       // export as module if template is not blank
-      var slug = template ?
-        'var Handlebars = require(' + loaderUtils.stringifyRequest(loaderApi, runtimePath) + ');\n'
-        + 'function __default(obj) { return obj && (obj.__esModule ? obj["default"] : obj); }\n'
-        + 'module.exports = (Handlebars["default"] || Handlebars).template(' + template + ');' :
-        'module.exports = function(){return "";};';
+      var slug = template
+        ? "var Handlebars = require(" +
+          loaderUtils.stringifyRequest(loaderApi, runtimePath) +
+          ");\n" +
+          'function __default(obj) { return obj && (obj.__esModule ? obj["default"] : obj); }\n' +
+          'module.exports = (Handlebars["default"] || Handlebars).template(' +
+          template +
+          ");"
+        : 'module.exports = function(){return "";};';
 
       loaderAsyncCallback(null, slug);
     };
@@ -396,17 +429,35 @@ module.exports = function(source) {
     };
 
     var resolvePartials = function(err) {
-      resolveItems(err, 'partials', foundPartials, resolvePartialsIterator, doneResolving);
+      resolveItems(
+        err,
+        "partials",
+        foundPartials,
+        resolvePartialsIterator,
+        doneResolving
+      );
     };
 
     var resolveUnclearStuff = function(err) {
-      resolveItems(err, 'unclearStuff', foundUnclearStuff, resolveUnclearStuffIterator, resolvePartials);
+      resolveItems(
+        err,
+        "unclearStuff",
+        foundUnclearStuff,
+        resolveUnclearStuffIterator,
+        resolvePartials
+      );
     };
 
     var resolveHelpers = function(err) {
-      resolveItems(err, 'helpers', foundHelpers, resolveHelpersIterator, resolveUnclearStuff);
+      resolveItems(
+        err,
+        "helpers",
+        foundHelpers,
+        resolveHelpersIterator,
+        resolveUnclearStuff
+      );
     };
 
     resolveHelpers();
-  }());
+  })();
 };
